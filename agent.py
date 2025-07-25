@@ -1,4 +1,8 @@
 import logging
+import os
+
+from langchain.tools.retriever import create_retriever_tool
+from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 from langchain_huggingface import (
@@ -6,18 +10,22 @@ from langchain_huggingface import (
     HuggingFaceEmbeddings,
     HuggingFaceEndpoint,
 )
+from langfuse import get_client
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_community.vectorstores import SupabaseVectorStore
-from langchain.tools.retriever import create_retriever_tool
-from langchain_core.documents import Document
+from openinference.instrumentation.langchain import LangChainInstrumentor
 from supabase.client import Client, create_client
 
 from tool import tools
-import os
+
+LangChainInstrumentor().instrument()
+#todo
+#os.environ["LANGFUSE_PUBLIC_KEY"]
+#os.environ["LANGFUSE_SECRET_KEY"]
+#os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
 
 logger = logging.getLogger(__name__)
-
+langfuse = get_client()
 
 with open("system_prompt.txt", encoding="utf-8") as f:
     system_prompt = f.read()
@@ -30,7 +38,7 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 supabase: Client = create_client(
-    os.environ.get("SUPABASE_URL"), 
+    os.environ.get("SUPABASE_URL"),
     os.environ.get("SUPABASE_SERVICE_KEY"))
 vector_store = SupabaseVectorStore(
     client=supabase,
@@ -67,7 +75,7 @@ def build_graph(provider: str = "groq"):
         """Assistant node"""
         return {"messages": [llm_with_tools.invoke(state["messages"])]}
 
-    
+
     def retriever(state: MessagesState):
         """Retriever node"""
         similar_question = vector_store.similarity_search(state["messages"][0].content)
